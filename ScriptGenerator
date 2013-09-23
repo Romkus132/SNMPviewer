@@ -1,0 +1,114 @@
+import sys
+from PyQt4 import QtGui, QtCore
+import re
+import ipaddr
+import socket, struct
+
+
+class Example(QtGui.QWidget):
+    
+    def __init__(self):
+        super(Example, self).__init__()
+        
+        self.initUI()
+        
+    def initUI(self):      
+    
+
+        self.layout = QtGui.QGridLayout(self)
+        
+        self.btnConn = QtGui.QPushButton('Сгенерировать \n начальную конфигурацию', self)        
+        self.btnConn.clicked.connect(self.generate)
+        self.layout.addWidget(self.btnConn, 7,1)
+
+        self.label1 = QtGui.QLabel("Интерфейс:")
+        self.layout.addWidget(self.label1, 0,0)
+
+        self.label2 = QtGui.QLabel("IP-адрес узла:")
+        self.layout.addWidget(self.label2, 0,1)
+
+        self.label3 = QtGui.QLabel("SNMP RO community:")
+        self.layout.addWidget(self.label3, 2,0)
+
+        self.label4 = QtGui.QLabel("SNMP RW community:")
+        self.layout.addWidget(self.label4, 2,1)
+
+        self.label5 = QtGui.QLabel("enable password:")
+        self.layout.addWidget(self.label5, 4,0)        
+
+        self.label6 = QtGui.QLabel("vty password:")
+        self.layout.addWidget(self.label6, 4,1)
+        
+        self.hostIP = QtGui.QLineEdit(self)
+        self.hostIP.setText("192.168.56.150/24")
+        self.layout.addWidget(self.hostIP, 1,1)
+
+        self.snmpCommRO = QtGui.QLineEdit(self)
+        self.snmpCommRO.setText("public")
+        self.layout.addWidget(self.snmpCommRO,3,0)
+
+        self.snmpCommRW = QtGui.QLineEdit(self)
+        self.snmpCommRW.setText("private")
+        self.layout.addWidget(self.snmpCommRW,3,1)
+
+        self.nameOfInt = QtGui.QLineEdit(self)
+        self.nameOfInt.setText("FastEthernet0/0")
+        self.layout.addWidget(self.nameOfInt,1,0)
+
+        self.enPassText = QtGui.QLineEdit(self)
+        self.enPassText.setText("123")
+        self.layout.addWidget(self.enPassText,5,0)
+
+        self.vtyPassText = QtGui.QLineEdit(self)
+        self.vtyPassText.setText("123")
+        self.layout.addWidget(self.vtyPassText,5,1)
+        
+        self.setGeometry(300, 300, 300, 200)
+        self.setWindowTitle('Генератор конфигураций')
+        self.show()
+        
+    def generate(self):
+        tempHost = re.findall(".+\/",self.hostIP.text()) #Getting connection settings
+        tempMask = re.findall("\/.+",self.hostIP.text())
+        host = str(tempHost)[2:-3]
+        tempMask = int(str(tempMask)[3:-2])
+        tempMask = mask = (1<<32) - (1<<32>>tempMask)
+        mask = socket.inet_ntoa(struct.pack(">L", tempMask))
+        self.community = self.snmpCommRO.text()
+        self.ifName = self.nameOfInt.text()
+        self.communityRW = self.snmpCommRW.text()
+        self.enPass = self.enPassText.text()
+        self.vtyPass = self.vtyPassText.text()
+
+        self.label7 = QtGui.QLabel("Загрузите данную конфигурацию на маршрутизатор")
+        #self.layout.addWidget(self.label7, 0,0)
+
+        self.configText = QtGui.QTextEdit(self)
+        self.configText.append("enable")
+        self.configText.append("configuration terminal")
+        self.configText.append("enable password " + self.enPassText.text())
+        self.configText.append("snmp-server community "+self.snmpCommRO.text()+' ro')
+        self.configText.append("snmp-server community "+self.snmpCommRW.text()+' rw')
+        self.configText.append("interface " + self.nameOfInt.text())
+        self.configText.append("ip address "+host+' '+mask)
+        self.configText.append("line vty 0 4")
+        self.configText.append("password "+self.vtyPassText.text())
+        self.configText.append("login")
+        
+        for i in reversed(range(self.layout.count())): 
+               self.layout.itemAt(i).widget().setParent(None)
+
+        self.layout.addWidget(self.label7,0,0)
+        self.layout.addWidget (self.configText,1,0)
+               
+        print ('OK')
+
+def main():
+    
+    app = QtGui.QApplication(sys.argv)
+    ex = Example()    
+    sys.exit(app.exec_())
+
+
+if __name__ == '__main__':
+    main()
