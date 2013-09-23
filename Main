@@ -1,0 +1,416 @@
+from socket import *
+import sys
+from PyQt4 import QtGui, QtCore
+import re
+import telnetlib
+import getpass
+
+from pysnmp.entity.rfc3413.oneliner import cmdgen
+from pysnmp.proto.rfc1902 import Integer, IpAddress, OctetString
+
+
+#host = "192.168.56.150"
+#port = 161
+#community='public'
+valueHost=(1,3,6,1,2,1,1,5,0)
+valueIp=(1,3,6,1,2,1,4,20,1,2)
+valueInt=(1,3,6,1,2,1,2,2,1,2)
+valueMask=(1,3,6,1,2,1,4,20,1,3)
+valueStatus=(1,3,6,1,2,1,2,2,1,7)
+valueCisco=(1,3,6,1,4,1,9)
+value=(1,3,6,1,2,1,1,3,0)
+ips=[]
+
+def snmp2get(host, port, community, value):
+       generator = cmdgen.CommandGenerator()
+       comm_data = cmdgen.CommunityData('server', community, 1) 
+       transport = cmdgen.UdpTransportTarget((host, port))
+       real_fun = getattr(generator, 'getCmd')
+       res = (errorIndication, errorStatus, errorIndex, varBinds) = real_fun(comm_data, transport, value)
+       res1 = str(res[3])
+       #print (res1)
+       if not errorIndication is None  or errorStatus is True:
+              print ("Error")
+       else:
+              print ("OK")
+       return res1
+
+def snmp2getnext(host, port, community, value):
+       generator = cmdgen.CommandGenerator()
+       comm_data = cmdgen.CommunityData('server', community, 1) 
+       transport = cmdgen.UdpTransportTarget((host, port))
+       real_fun = getattr(generator, 'nextCmd')
+       res = (errorIndication, errorStatus, errorIndex, varBinds) = real_fun(comm_data, transport, value)
+       res1 = str(res[3])
+       #print ('SNMP result: ')
+       print (res1)
+       if not errorIndication is None  or errorStatus is True:
+              print ("Error")
+       else:
+              print ("OK")
+       return res1
+
+def snmp2set(host, port, community, value, setValue):
+       cmdGen = cmdgen.CommandGenerator()
+
+       errorIndication, errorStatus, errorIndex, varBinds = cmdGen.setCmd(
+           cmdgen.CommunityData(community, mpModel=0),
+           cmdgen.UdpTransportTarget((host, port)),
+           (value, setValue))
+
+def setIPTelnet(host, vtyPass, enPass, intID, ipAddr, ipMask):
+           t=telnetlib.Telnet(host)
+           t.read_until(b"Password: ")
+           t.write(vtyPass.encode('ascii') + b"\r\n")
+           t.read_until(b'>')
+           t.write(b"enable\r\n")
+           t.read_until(b"Password: ")
+           t.write(enPass.encode('ascii') + b"\r\n")
+           t.read_until(b'#')
+           t.write(b"configure terminal\r\n")
+           t.read_until(b'(config)#')
+           t.write(b"interface " + intID.encode('ascii') + b"\r\n")
+           t.read_until(b'(config-if)#')
+           t.write(b"ip address " +ipAddr.encode('ascii') +b' ' + ipMask.encode('ascii') + b"\r\n")
+           err = t.read_until(b'(config-if)#')
+           print (err)
+           t.close()
+           return err
+           
+
+class Example(QtGui.QWidget):
+    
+    def __init__(self):
+        super(Example, self).__init__()
+        
+        self.initUI()
+        
+    def initUI(self):      
+        self.unusableInts=[]        
+        self.ipHost1 = []
+        #self.ipHost1.move(20, 80)
+        #self.ipHost1.setText('Text')
+
+       
+
+        self.layout = QtGui.QGridLayout(self)
+        
+        self.btnConn = QtGui.QPushButton('Connect', self)        
+        self.btnConn.clicked.connect(self.fillForms)
+        self.layout.addWidget(self.btnConn, 7,1)
+
+        self.label1 = QtGui.QLabel("IP-адрес узла:")
+        self.layout.addWidget(self.label1, 0,0)
+
+        self.label2 = QtGui.QLabel("Порт:")
+        self.layout.addWidget(self.label2, 0,1)
+
+        self.label3 = QtGui.QLabel("SNMP RO community:")
+        self.layout.addWidget(self.label3, 2,0)
+
+        self.label4 = QtGui.QLabel("SNMP RW community:")
+        self.layout.addWidget(self.label4, 2,1)
+
+        self.label5 = QtGui.QLabel("enable password:")
+        self.layout.addWidget(self.label5, 4,0)        
+
+        self.label6 = QtGui.QLabel("vty password:")
+        self.layout.addWidget(self.label6, 4,1)
+        
+        self.hostIP = QtGui.QLineEdit(self)
+        self.hostIP.setText("192.168.56.150")
+        self.layout.addWidget(self.hostIP, 1,0)
+
+        self.snmpCommRO = QtGui.QLineEdit(self)
+        self.snmpCommRO.setText("public")
+        self.layout.addWidget(self.snmpCommRO,3,0)
+
+        self.snmpCommRW = QtGui.QLineEdit(self)
+        self.snmpCommRW.setText("private")
+        self.layout.addWidget(self.snmpCommRW,3,1)
+
+        self.snmpPort = QtGui.QLineEdit(self)
+        self.snmpPort.setText("161")
+        self.layout.addWidget(self.snmpPort,1,1)
+
+        self.enPassText = QtGui.QLineEdit(self)
+        self.enPassText.setText("123")
+        self.layout.addWidget(self.enPassText,5,0)
+
+        self.vtyPassText = QtGui.QLineEdit(self)
+        self.vtyPassText.setText("123")
+        self.layout.addWidget(self.vtyPassText,5,1)
+        
+        self.setGeometry(300, 300, 600, 300)
+        self.setWindowTitle('SNMP View')
+        self.show()
+        
+        
+    def fillForms(self):
+        self.host = self.hostIP.text() #Getting connection settings
+        self.community = self.snmpCommRO.text()
+        self.port = self.snmpPort.text()
+        self.communityRW = self.snmpCommRW.text()
+        self.enPass = self.enPassText.text()
+        self.vtyPass = self.vtyPassText.text()
+        
+        print (self.host, self.community, self.port)
+        for i in reversed(range(self.layout.count())): 
+               self.layout.itemAt(i).widget().setParent(None)
+               
+        #setIPTelnet(self.host, "123", "123", "lo0", "9.8.7.6", "255.255.255.0")
+        #snmp2set(self.host, self.port, self.communityRW, (1,3,6,1,2,1,2,2,1,7,2), Integer(2))
+
+        
+        self.btnConn = QtGui.QPushButton('Refresh', self)        
+        self.btnConn.clicked.connect(self.fillForms)
+        self.layout.addWidget(self.btnConn, 0,0)
+
+        self.hostLabel = QtGui.QLabel('Hostname')
+        self.layout.addWidget(self.hostLabel, 2, 0)
+               
+        self.hostname = QtGui.QLineEdit(self)        
+        self.hostname.setText('Hostname')
+        self.layout.addWidget(self.hostname,2,1)
+
+        
+        
+        self.ipHost1=[]
+        self.intList=[]
+        self.intIDList=[]
+        self.ipMasks=[]
+        self.intStat=[]
+        self.ipHost1Button=[] #Invisible buttons for event Pressed Enter in textBox
+        self.ipMasksButton=[]
+        
+        self.hostname.setText(snmp2get(self.host,self.port,self.community,valueHost)[48:-5]) #Getting hostname
+        self.intIDList = self.findIntID() #Getting list od interface IDs, must be before finding IPs
+        
+
+        i2=0
+        result2 = self.findInt() #Getting list of interfaces        
+        for i in range(len(result2)):
+               self.intList.append(QtGui.QLabel(result2[i])) #Creating labels with interfaces names
+               self.ipHost1Button.append(QtGui.QPushButton(self))               
+               self.ipHost1Button[i].clicked.connect(self.ipHost1Button_clicked)
+               self.ipMasksButton.append(QtGui.QPushButton(self))               
+               self.ipMasksButton[i].clicked.connect(self.ipMasksButton_clicked)
+               
+               #self.pushButtonOK.setAutoDefault(True)
+               if (result2[i]==''):
+                      self.unusableInts.append(i)
+                      i2+=1               
+               else:
+                      self.layout.addWidget(self.intList[i], 5+i-i2, 0)                      
+                             
+               
+        result, num = self.findIPs() #Getting list of IP addresses        
+        i2=0
+        for i in range(len(result)):
+               self.ipHost1.append(QtGui.QLineEdit(self))
+               if (i in self.unusableInts):
+                      i2+=1
+               else:
+                      if (i in num):
+                             self.ipHost1[i].setText(result[num.index(i)])                             
+                      self.layout.addWidget(self.ipHost1[i], 5+i-i2, 1)
+                      self.ipHost1[i].returnPressed.connect(self.ipHost1Button[i].click) #Emulate press Enter
+
+        result3 = self.findMasks() #Getting list of masks   !!! Should be after findIPs()
+        i2=0
+        i=0
+        for i in range(len(result)):
+               self.ipMasks.append(QtGui.QLineEdit(self))
+               if (i in self.unusableInts):
+                      i2+=1
+               else:
+                      if (i in num):                      
+                             self.ipMasks[i].setText(result3[i])                             
+                      self.layout.addWidget(self.ipMasks[i], 5+i-i2, 2)
+                      self.ipMasks[i].returnPressed.connect(self.ipMasksButton[i].click)
+
+        result4 = self.findStatus() #Getting list of Interface Statuses
+        i2=0
+        for i in range(len(result2)):
+               self.intStat.append(QtGui.QCheckBox(self))
+               if (i in self.unusableInts):                      
+                      i2+=1                      
+               else:
+                      if (result4[i]==1):
+                             self.intStat[i].setCheckState(2)
+                      if (i==4):
+                             self.intStat[i].setEnabled(False)
+                             #print ('Read-Only!')
+                      self.layout.addWidget(self.intStat[i], 5+i-i2, 3)
+                      self.intStat[i].stateChanged.connect(self.intStatChanged)
+        print ('OK')
+
+
+
+
+
+
+        
+    def findIPs(self):
+        tempIDs=[]
+        snmpRes = snmp2getnext(self.host,self.port,self.community,valueIp)
+        tempIps = re.findall ('(\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+)',snmpRes)
+        for i in re.findall("\(\d{1,2}\)",snmpRes):
+               tempIDs.append(int(i[1]))
+        self.actualIPs = tempIDs
+        print (self.actualIPs)
+        ips=[]
+        i=0
+        i1=0
+        for i in range(max(self.intIDList)+1):
+               ips.append('')
+        i=0
+        for i2 in tempIps:
+               i1 = i2.split('.')
+               if (len(i1)>12):
+                      t = str(i1[10]) +'.'+str(i1[11]) +'.'+str(i1[12]) +'.'+str(i1[13])
+                      ips[i]=t
+               i+=1
+        
+        return ips,tempIDs
+       
+    def findInt(self):
+        ints = []
+        intIDs=[]
+        self.r=[]
+        snmpRes = snmp2getnext(self.host,self.port,self.community,valueInt)
+        tempInt = re.findall ("\'b\'.{3,30}\'\'" , snmpRes)
+        tempIDs = re.findall("\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+",snmpRes)
+        for i in tempIDs:
+               self.r.append(int(i[20]))
+        
+        for i in range(max(self.r)+1):
+               ints.append('')
+              
+        i2=0       
+        for i in self.r:
+               ints[i]=tempInt[i2][3:-2]
+               i2+=1
+               
+        return ints
+
+    
+    def findIntID(self):
+        intIDs = []
+        tempIntIDs = re.findall ("\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+\.\d+" , snmp2getnext(self.host,self.port,self.community,valueInt))
+        for i in tempIntIDs:
+               intIDs.append(int(i[20]))        
+        return intIDs
+
+
+    def findMasks(self):
+           tempMasks=[]
+           tempMasks2=[]
+           masks=[]
+           snmpRes=snmp2getnext(self.host,self.port,self.community,valueMask)
+           
+           for i in re.findall("\'.{8}\'",snmpRes):
+                  tempMasks.append(i[1:-1])
+           
+           for i in tempMasks:
+                  tempMasks2.append(str(int(i[0:2],16)) + '.' + str(int(i[2:4],16)) + '.' + str(int(i[4:6],16))+ '.' + str(int(i[6:8],16)))
+           for i in range(max(self.actualIPs)+1):
+               masks.append('')
+              
+           i2=0       
+           for i in self.actualIPs:
+               masks[i]=tempMasks2[i2]
+               i2+=1     
+           return masks
+
+    def findStatus(self): 
+           tempStatus=[]
+           status=[]
+           snmpRes=snmp2getnext(self.host,self.port,self.community,valueStatus)
+           for i in re.findall("\(\d{1}\)",snmpRes):
+                  tempStatus.append(int(i[1]))
+
+           for i in range(max(self.r)+1):
+               status.append('')
+              
+           i2=0       
+           for i in self.r:
+               status[i]=tempStatus[i2]
+               i2+=1
+           return status
+
+
+    def intStatChanged(self): #When the checkBox is changed
+           sender=self.sender()           
+           index = self.intStat.index(sender) #Searching sender
+           i=2
+           if (sender.isChecked()):
+                  i=1           
+           snmp2set(self.host, self.port, self.communityRW, valueStatus+(index,), Integer(i))
+
+    def ipHost1Button_clicked(self):
+           sender=self.sender()
+           index=self.ipHost1Button.index(sender)           
+           print (self.ipMasks[index].text())
+           if (self.ipMasks[index].text()==''):
+                  QtGui.QMessageBox.critical(self, u'Empty Mask', u'Enter the mask!', QtGui.QMessageBox.Ok)
+           else:
+                  err = setIPTelnet(self.host, self.vtyPass, self.enPass, self.intList[index].text(), self.ipHost1[index].text(), self.ipMasks[index].text())
+                  err2 = re.findall("\\\\r\\\\n.+\\\\r\\\\n", str(err[2:-1]))                  
+                  QtGui.QMessageBox.critical(self, u'Error', str(err2)[8:-8], QtGui.QMessageBox.Ok)
+                  
+
+    def ipMasksButton_clicked(self):
+           sender=self.sender()
+           index=self.ipMasksButton.index(sender)           
+           print (self.ipHost1[index].text())
+           if (self.ipHost1[index].text()==''):
+                  QtGui.QMessageBox.critical(self, u'Empty IP address', u'Enter the ip address!', QtGui.QMessageBox.Ok)
+           else:
+                  err = setIPTelnet(self.host, self.vtyPass, self.enPass, self.intList[index].text(), self.ipHost1[index].text(), self.ipMasks[index].text())
+                  err2 = re.findall("\\\\r\\\\n.+\\\\r\\\\n", str(err[2:-1]))                  
+                  QtGui.QMessageBox.critical(self, u'Error', str(err2)[8:-8], QtGui.QMessageBox.Ok)
+
+           
+    
+           
+
+        
+def main():
+    
+    app = QtGui.QApplication(sys.argv)
+    ex = Example()
+    #snmp2get(host,port,community,value)
+    sys.exit(app.exec_())
+
+
+if __name__ == '__main__':
+    main()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
