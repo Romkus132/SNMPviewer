@@ -63,8 +63,9 @@ class Example(QtGui.QWidget):
         self.vtyPassText.setText("123")
         self.layout.addWidget(self.vtyPassText,5,1)
         
-        self.setGeometry(300, 300, 300, 200)
+        self.setGeometry(300, 300, 300, 250)
         self.setWindowTitle('Генератор конфигураций')
+        self.setWindowIcon(QtGui.QIcon('ico.gif'))
         self.show()
         
     def generate(self):
@@ -85,12 +86,13 @@ class Example(QtGui.QWidget):
 
         self.configText = QtGui.QTextEdit(self)
         self.configText.append("enable")
-        self.configText.append("configuration terminal")
+        self.configText.append("configure terminal")
         self.configText.append("enable password " + self.enPassText.text())
         self.configText.append("snmp-server community "+self.snmpCommRO.text()+' ro')
         self.configText.append("snmp-server community "+self.snmpCommRW.text()+' rw')
         self.configText.append("interface " + self.nameOfInt.text())
         self.configText.append("ip address "+host+' '+mask)
+        self.configText.append("no shutdown")
         self.configText.append("line vty 0 4")
         self.configText.append("password "+self.vtyPassText.text())
         self.configText.append("login")
@@ -100,9 +102,16 @@ class Example(QtGui.QWidget):
 
         self.layout.addWidget(self.label7,0,0)
         self.layout.addWidget (self.configText,1,0)
+
+        self.btnReConn = QtGui.QPushButton('Сгенерировать другую\n начальную конфигурацию', self)        
+        self.btnReConn.clicked.connect(self.restart)
+        self.layout.addWidget(self.btnReConn, 2,0)
                
         print ('OK')
 
+    def restart(self):
+        Example.__init__(self)
+    
 def main():
     
     app = QtGui.QApplication(sys.argv)
