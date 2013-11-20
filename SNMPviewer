@@ -78,6 +78,26 @@ def setIPTelnet(host, vtyPass, enPass, intID, ipAddr, ipMask):
            t.close()
            return err
 
+def setNoIPTelnet(host, vtyPass, enPass, intID):
+           t=telnetlib.Telnet(host)
+           t.read_until(b"Password: ")
+           t.write(vtyPass.encode('ascii') + b"\r\n")
+           t.read_until(b'>')
+           t.write(b"enable\r\n")
+           t.read_until(b"Password: ")
+           t.write(enPass.encode('ascii') + b"\r\n")
+           t.read_until(b'#')
+           t.write(b"configure terminal\r\n")
+           t.read_until(b'(config)#')
+           err = t.write(b"interface " + intID.encode('ascii') + b"\r\n")
+           #print (err)
+           t.read_until(b'(config-if)#')
+           t.write(b'no ip address' + b"\r\n")
+           err = t.read_until(b'(config-if)#')
+           #print (err)
+           t.close()
+           return err
+
 def setHTTPEnable(host, vtyPass, enPass, user, password):
            t=telnetlib.Telnet(host)
            t.read_until(b"Password: ")
@@ -411,27 +431,33 @@ class Example(QtGui.QWidget):
            sender=self.sender()
            index=self.ipHost1Button.index(sender)           
            print (self.ipMasks[index].text() )
-           if ((self.ipMasks[index].text()=='' or self.ipHost1[index].text()=='') and self.ipHost1[index].text()!='dhcp'):
-                  QtGui.QMessageBox.critical(self, u'Пустая маска', u'Введите маску!', QtGui.QMessageBox.Ok)
+           if (self.ipHost1[index].text()=='' and self.ipMasks[index].text()==''):
+                  err = setNoIPTelnet(self.host, self.vtyPass, self.enPass, self.intList[index].text())
            else:
-                  err = setIPTelnet(self.host, self.vtyPass, self.enPass, self.intList[index].text(), self.ipHost1[index].text(), self.ipMasks[index].text())
-                  err2 = re.findall("\\\\r\\\\n.+\\\\r\\\\n", str(err[2:-1]))                  
-                  if (err2):
-                         QtGui.QMessageBox.critical(self, u'Error', str(err2)[8:-8], QtGui.QMessageBox.Ok) #
+                  if ((self.ipMasks[index].text()=='' or self.ipHost1[index].text()=='') and self.ipHost1[index].text()!='dhcp'):
+                         QtGui.QMessageBox.critical(self, u'Пустая маска', u'Введите маску!', QtGui.QMessageBox.Ok)
+                  else:
+                         err = setIPTelnet(self.host, self.vtyPass, self.enPass, self.intList[index].text(), self.ipHost1[index].text(), self.ipMasks[index].text())
+                         err2 = re.findall("\\\\r\\\\n.+\\\\r\\\\n", str(err[2:-1]))                  
+                         if (err2):
+                                QtGui.QMessageBox.critical(self, u'Error', str(err2)[8:-8], QtGui.QMessageBox.Ok) #
                   
 
     def ipMasksButton_clicked(self):
            sender=self.sender()
            index=self.ipMasksButton.index(sender)           
            print (self.ipHost1[index].text())
-           if ((self.ipHost1[index].text()=='' or self.ipMasks[index].text()=='') and self.ipHost1[index].text()!='dhcp'):
-                  QtGui.QMessageBox.critical(self, u'Пустой IP-адрес', u'Введите IP-адрес!', QtGui.QMessageBox.Ok)
+           if (self.ipHost1[index].text()=='' and self.ipMasks[index].text()==''):
+                  err = setNoIPTelnet(self.host, self.vtyPass, self.enPass, self.intList[index].text())
            else:
-                  err = setIPTelnet(self.host, self.vtyPass, self.enPass, self.intList[index].text(), self.ipHost1[index].text(), self.ipMasks[index].text())
-                  err2 = re.findall("\\\\r\\\\n.+\\\\r\\\\n", str(err[2:-1]))
-                  #print (str(err2)+'----------')
-                  if (err2):
-                         QtGui.QMessageBox.critical(self, u'Error2', str(err2)[8:-8], QtGui.QMessageBox.Ok)#
+                  if ((self.ipHost1[index].text()=='' or self.ipMasks[index].text()=='') and self.ipHost1[index].text()!='dhcp'):
+                         QtGui.QMessageBox.critical(self, u'Пустой IP-адрес', u'Введите IP-адрес!', QtGui.QMessageBox.Ok)
+                  else:
+                         err = setIPTelnet(self.host, self.vtyPass, self.enPass, self.intList[index].text(), self.ipHost1[index].text(), self.ipMasks[index].text())
+                         err2 = re.findall("\\\\r\\\\n.+\\\\r\\\\n", str(err[2:-1]))
+                         #print (str(err2)+'----------')
+                         if (err2):
+                                QtGui.QMessageBox.critical(self, u'Error2', str(err2)[8:-8], QtGui.QMessageBox.Ok)#
 
            
     def hostnameButton_clicked(self):
